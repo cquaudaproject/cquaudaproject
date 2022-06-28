@@ -1,0 +1,203 @@
+[
+    {
+        "id": "aeb00f079c183644",
+        "type": "tab",
+        "label": "Flow 1",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "470b201be51ffeae",
+        "type": "mqtt in",
+        "z": "aeb00f079c183644",
+        "name": "Esp32datain",
+        "topic": "Esp32test",
+        "qos": "0",
+        "datatype": "auto",
+        "broker": "7060289ac045061f",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 150,
+        "y": 100,
+        "wires": [
+            [
+                "825efde967ef8d7d",
+                "42fa36b17125aa9f"
+            ]
+        ]
+    },
+    {
+        "id": "825efde967ef8d7d",
+        "type": "debug",
+        "z": "aeb00f079c183644",
+        "name": "",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 290,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "72387fc50df14de3",
+        "type": "python3-function",
+        "z": "aeb00f079c183644",
+        "d": true,
+        "name": "Deep Decoding",
+        "func": "import time \nimport scapy.all as scapy\n\n\nhexdump_packet = msg.payload\npacket = Dot11(hexdump_packet.import_hexcap())\nmsg1 = {'payload':packet}\nnode.send(msg1)\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nreturn msg",
+        "outputs": 1,
+        "x": 460,
+        "y": 420,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "063eee267fa3c10c",
+        "type": "debug",
+        "z": "aeb00f079c183644",
+        "name": "Return Packets",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 500,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "42fa36b17125aa9f",
+        "type": "python3-function",
+        "z": "aeb00f079c183644",
+        "name": "",
+        "func": "#! /usr/bin/env python3\n\nimport time\nimport sys\nimport scapy.all as scapy\n\nscapy.conf.use_pcap = True\n\n#msg0 = {'payload': sys.version}\n#node.send(msg0)\nhexdump_pkt = msg['payload']\n\npacket = scapy.Dot11(scapy.import_hexcap(input_string=hexdump_pkt))\n\n#td_packet = str(scapy.tcpdump(packet, dump=True))\nmsg1 = {'payload':str(packet.layers())}\n#msg1 = {'payload':td_packet}\nnode.send(msg1)\nmsg2 = {'payload':packet.sprintf(\" Packet Type = %Dot11.type%\\n Packet Subtype = %Dot11.subtype%\\n Protocol Version = %Dot11.proto%\\n cfe = %Dot11.cfe%\\n FCField = %Dot11.FCfield%\\n ID = %Dot11.ID%\\n addr1 = %Dot11.addr1%\\n addr2 = %Dot11.addr2%\\n addr3 = %Dot11.addr3%\\n SC = %Dot11.SC%\\n addr4 = %Dot11.addr4%\")}\nnode.send(msg2)\n\n#filtering the packets for wifi SSID which ESP32 connected to\nssid = \"WiFi-B2B7\"\n\nif packet.sprintf(\"%Dot11.type%\") == \"Management\":\n    if packet.haslayer(scapy.Dot11Elt):\n        if packet.sprintf(\"%Dot11Elt.ID%\") == \"SSID\":\n            if ssid in packet.sprintf(\"%Dot11Elt.info%\"):\n                msg1 = {'payload':packet.show2(dump=True)}\n                msg1 = {'payload':td_packet}",
+        "outputs": 1,
+        "x": 390,
+        "y": 100,
+        "wires": [
+            [
+                "761e9ade1d7afd99"
+            ]
+        ]
+    },
+    {
+        "id": "761e9ade1d7afd99",
+        "type": "switch",
+        "z": "aeb00f079c183644",
+        "name": "",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "cont",
+                "v": "Packet Type",
+                "vt": "str"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 570,
+        "y": 100,
+        "wires": [
+            [
+                "45e6e794111f2e3e",
+                "4012eb1c701f302c"
+            ],
+            [
+                "063eee267fa3c10c"
+            ]
+        ]
+    },
+    {
+        "id": "45e6e794111f2e3e",
+        "type": "influxdb out",
+        "z": "aeb00f079c183644",
+        "d": true,
+        "influxdb": "9526ff4d1e29a534",
+        "name": "",
+        "measurement": "msg.payload",
+        "precision": "",
+        "retentionPolicy": "",
+        "database": "database",
+        "precisionV18FluxV20": "ms",
+        "retentionPolicyV18Flux": "",
+        "org": "p.hettiarachchi@cqu.edu.au",
+        "bucket": "Esp32_Packet_Data",
+        "x": 780,
+        "y": 220,
+        "wires": []
+    },
+    {
+        "id": "4012eb1c701f302c",
+        "type": "debug",
+        "z": "aeb00f079c183644",
+        "name": "Packet Header",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 800,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "7060289ac045061f",
+        "type": "mqtt-broker",
+        "name": "",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": "",
+        "willMsg": {},
+        "sessionExpiry": ""
+    },
+    {
+        "id": "9526ff4d1e29a534",
+        "type": "influxdb",
+        "hostname": "127.0.0.1",
+        "port": "8086",
+        "protocol": "http",
+        "database": "database",
+        "name": "InfluxDB Cloud",
+        "usetls": false,
+        "tls": "",
+        "influxdbVersion": "2.0",
+        "url": "https://ap-southeast-2-1.aws.cloud2.influxdata.com",
+        "rejectUnauthorized": true
+    }
+]
