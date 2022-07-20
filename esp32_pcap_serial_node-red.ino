@@ -22,7 +22,7 @@
 #include "FS.h"
 #include "SD.h"
 #include "SPI.h"
-#include <PCAP.h>
+#include "PCAP.h"
 #include <cstring>
 
 //===== SETTINGS =====//
@@ -32,10 +32,14 @@
 #define MAX_CHANNEL 11 //(only necessary if channelHopping is true)
 #define HOP_INTERVAL 500 //in ms (only necessary if channelHopping is true)
 
+
 //===== Run-Time variables =====//
 PCAP pcap = PCAP();
 int ch = CHANNEL;
 unsigned long lastChannelChange = 0;
+unsigned long lastpcaprun = 0;
+unsigned long lastpcapwrite = 0;
+int a = 0;
 
 //===== FUNCTIONS =====//
 
@@ -46,9 +50,10 @@ void sniffer(void *buf, wifi_promiscuous_pkt_type_t type){
   
   uint32_t timestamp = now(); //current timestamp 
   uint32_t microseconds = (unsigned int)(micros() - millis() * 1000); //micro seconds offset (0 - 999)
+  uint32_t orig_len = (unsigned int)ctrl.sig_len;
   
-  pcap.newPacketSerial(timestamp, microseconds, ctrl.sig_len, pkt->payload); //send packet via Serial  
-  delay(200);
+  pcap.newPacketSerial(timestamp, microseconds, orig_len, pkt->payload); //send packet via Serial  
+  delay(600);
 }
 
 esp_err_t event_handler(void *ctx, system_event_t *event){ 
@@ -101,7 +106,7 @@ void setup() {
 
 //===== LOOP =====//
 void loop() {
-  
+ 
   /* Channel Hopping */
   if(CHANNEL_HOPPING){
     unsigned long currentTime = millis();
@@ -112,6 +117,9 @@ void loop() {
       wifi_second_chan_t secondCh = (wifi_second_chan_t)NULL;
       esp_wifi_set_channel(ch,secondCh);
     }
+    
+    
   }
+  
   
 }
