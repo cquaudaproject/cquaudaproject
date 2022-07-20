@@ -20,8 +20,8 @@
         "rap": true,
         "rh": 0,
         "inputs": 0,
-        "x": 150,
-        "y": 100,
+        "x": 170,
+        "y": 220,
         "wires": [
             [
                 "825efde967ef8d7d",
@@ -33,7 +33,7 @@
         "id": "825efde967ef8d7d",
         "type": "debug",
         "z": "aeb00f079c183644",
-        "name": "",
+        "name": "Return Hex Dump",
         "active": false,
         "tosidebar": true,
         "console": false,
@@ -42,8 +42,8 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 290,
-        "y": 200,
+        "x": 330,
+        "y": 120,
         "wires": []
     },
     {
@@ -54,8 +54,8 @@
         "name": "Deep Decoding",
         "func": "import time \nimport scapy.all as scapy\n\n\nhexdump_packet = msg.payload\npacket = Dot11(hexdump_packet.import_hexcap())\nmsg1 = {'payload':packet}\nnode.send(msg1)\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nreturn msg",
         "outputs": 1,
-        "x": 460,
-        "y": 420,
+        "x": 380,
+        "y": 700,
         "wires": [
             []
         ]
@@ -64,8 +64,8 @@
         "id": "063eee267fa3c10c",
         "type": "debug",
         "z": "aeb00f079c183644",
-        "name": "Return Packets",
-        "active": true,
+        "name": "Management Packets",
+        "active": false,
         "tosidebar": true,
         "console": false,
         "tostatus": false,
@@ -73,22 +73,37 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 500,
-        "y": 180,
+        "x": 880,
+        "y": 200,
         "wires": []
     },
     {
         "id": "42fa36b17125aa9f",
         "type": "python3-function",
         "z": "aeb00f079c183644",
-        "name": "",
-        "func": "#! /usr/bin/env python3\n\nimport time\nimport sys\nimport scapy.all as scapy\n\nscapy.conf.use_pcap = True\n\n#msg0 = {'payload': sys.version}\n#node.send(msg0)\nhexdump_pkt = msg['payload']\n\npacket = scapy.Dot11(scapy.import_hexcap(input_string=hexdump_pkt))\n\n#td_packet = str(scapy.tcpdump(packet, dump=True))\nmsg1 = {'payload':str(packet.layers())}\n#msg1 = {'payload':td_packet}\nnode.send(msg1)\nmsg2 = {'payload':packet.sprintf(\" Packet Type = %Dot11.type%\\n Packet Subtype = %Dot11.subtype%\\n Protocol Version = %Dot11.proto%\\n cfe = %Dot11.cfe%\\n FCField = %Dot11.FCfield%\\n ID = %Dot11.ID%\\n addr1 = %Dot11.addr1%\\n addr2 = %Dot11.addr2%\\n addr3 = %Dot11.addr3%\\n SC = %Dot11.SC%\\n addr4 = %Dot11.addr4%\")}\nnode.send(msg2)\n\n#filtering the packets for wifi SSID which ESP32 connected to\nssid = \"WiFi-B2B7\"\n\nif packet.sprintf(\"%Dot11.type%\") == \"Management\":\n    if packet.haslayer(scapy.Dot11Elt):\n        if packet.sprintf(\"%Dot11Elt.ID%\") == \"SSID\":\n            if ssid in packet.sprintf(\"%Dot11Elt.info%\"):\n                msg1 = {'payload':packet.show2(dump=True)}\n                msg1 = {'payload':td_packet}",
-        "outputs": 1,
-        "x": 390,
-        "y": 100,
+        "name": "Python Decoding",
+        "func": "#! /usr/bin/env python3\n\nimport time\nimport sys\nimport subprocess\nimport scapy.all as scapy\n\nscapy.conf.use_pcap = True\n\n#msg0 = {'payload': sys.version}\n#node.send(msg0)\nhexdump_pkt = msg['payload']\n\npacket = scapy.Dot11(scapy.import_hexcap(input_string=hexdump_pkt))\n\n#td_packet = str(scapy.tcpdump(packet, dump=True))\nmsg1 = {'payload':packet.show2(dump=True)}\n#msg1 = {'payload':td_packet}\nmsg2 = {'payload':packet.sprintf(\" Packet Type = %Dot11.type%\\n Packet Subtype = %Dot11.subtype%\\n Protocol Version = %Dot11.proto%\\n cfe = %Dot11.cfe%\\n FCField = %Dot11.FCfield%\\n ID = %Dot11.ID%\\n addr1 = %Dot11.addr1%\\n addr2 = %Dot11.addr2%\\n addr3 = %Dot11.addr3%\\n SC = %Dot11.SC%\\n addr4 = %Dot11.addr4%\")}\n\n\n#filtering the packets for wifi SSID which ESP32 connected to\nssid = \"WiFi-B2B7\"\npsk = \"44635237\"\n\n#Filtering management packets with infomation element \nmsg3 = {'payload':\"None\"}\nif packet.haslayer(scapy.Dot11Elt):\n    for layer in packet.iterpayloads():\n        \n        if type(layer) == scapy.Dot11Elt:\n        \n            if layer.fields['ID'] == 0:\n                if 'info' in layer.fields:\n                    if ssid in str(layer.fields['info']):\n                    \n                        msg3['payload'] = packet.show2(dump=True)\n                    \n#Filtering data packets\nmsg4 = {'payload':\"none\"}\nmsg5 = {'payload':\"null\"}\nmsg6 = {'payload':\"Null\"}\nif packet.sprintf(\"%Dot11.type%\") == \"Data\":\n   if (packet.sprintf(\"%Dot11.subtype%\") != \"Null (no data)\") and (packet.sprintf(\"%Dot11.subtype%\") != \"QoS Null (no data)\"):\n        msg4['payload']  = scapy.hexdump(packet,dump=True)\n        msg5['payload'] = packet.show2(dump=True)\n        #tdecode = scapy.tdecode(packet, args=['-x'],dump = True)\n        #msg6['payload'] = packet.sprintf(\"%Dot11.subtype%\")\n        \nreturn [msg1, msg2, msg3, msg4, msg5, msg6]",
+        "outputs": 6,
+        "x": 410,
+        "y": 220,
         "wires": [
             [
-                "761e9ade1d7afd99"
+                "b9800fe4964dd0b7"
+            ],
+            [
+                "4012eb1c701f302c"
+            ],
+            [
+                "779190da4b8d7380"
+            ],
+            [
+                "d3edbc499ca0ce81"
+            ],
+            [
+                "c6952aea02b7b1dd"
+            ],
+            [
+                "9f581b931a300181"
             ]
         ]
     },
@@ -96,6 +111,7 @@
         "id": "761e9ade1d7afd99",
         "type": "switch",
         "z": "aeb00f079c183644",
+        "d": true,
         "name": "",
         "property": "payload",
         "propertyType": "msg",
@@ -113,34 +129,28 @@
         "repair": false,
         "outputs": 2,
         "x": 570,
-        "y": 100,
+        "y": 700,
         "wires": [
-            [
-                "45e6e794111f2e3e",
-                "4012eb1c701f302c"
-            ],
-            [
-                "063eee267fa3c10c"
-            ]
+            [],
+            []
         ]
     },
     {
         "id": "45e6e794111f2e3e",
         "type": "influxdb out",
         "z": "aeb00f079c183644",
-        "d": true,
         "influxdb": "9526ff4d1e29a534",
-        "name": "",
+        "name": "Management Packets Out",
         "measurement": "msg.payload",
         "precision": "",
         "retentionPolicy": "",
         "database": "database",
         "precisionV18FluxV20": "ms",
         "retentionPolicyV18Flux": "",
-        "org": "p.hettiarachchi@cqu.edu.au",
-        "bucket": "Esp32_Packet_Data",
-        "x": 780,
-        "y": 220,
+        "org": "CquauDA Project",
+        "bucket": "Esp32_Packet_Headers",
+        "x": 1050,
+        "y": 80,
         "wires": []
     },
     {
@@ -156,8 +166,256 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 800,
-        "y": 120,
+        "x": 680,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "83bbf4fbc2c77064",
+        "type": "debug",
+        "z": "aeb00f079c183644",
+        "name": "Data Packets Hexdump",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 770,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "b9800fe4964dd0b7",
+        "type": "debug",
+        "z": "aeb00f079c183644",
+        "name": "Packet Layers",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 600,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "779190da4b8d7380",
+        "type": "switch",
+        "z": "aeb00f079c183644",
+        "name": "",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "None",
+                "vt": "str"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 690,
+        "y": 220,
+        "wires": [
+            [
+                "225d5d7780186cb9"
+            ],
+            [
+                "063eee267fa3c10c",
+                "45e6e794111f2e3e"
+            ]
+        ]
+    },
+    {
+        "id": "d3edbc499ca0ce81",
+        "type": "switch",
+        "z": "aeb00f079c183644",
+        "name": "",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "none",
+                "vt": "str"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 710,
+        "y": 280,
+        "wires": [
+            [
+                "225d5d7780186cb9"
+            ],
+            [
+                "83bbf4fbc2c77064",
+                "0edf5193f4db62d6"
+            ]
+        ]
+    },
+    {
+        "id": "225d5d7780186cb9",
+        "type": "debug",
+        "z": "aeb00f079c183644",
+        "name": "None Status",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1010,
+        "y": 280,
+        "wires": []
+    },
+    {
+        "id": "c6952aea02b7b1dd",
+        "type": "switch",
+        "z": "aeb00f079c183644",
+        "name": "",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "null",
+                "vt": "str"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 750,
+        "y": 440,
+        "wires": [
+            [
+                "225d5d7780186cb9"
+            ],
+            [
+                "2fecfad919938c9d",
+                "bcc18e67a9c4b9de"
+            ]
+        ]
+    },
+    {
+        "id": "2fecfad919938c9d",
+        "type": "debug",
+        "z": "aeb00f079c183644",
+        "name": "Data Packets",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 930,
+        "y": 460,
+        "wires": []
+    },
+    {
+        "id": "9f581b931a300181",
+        "type": "switch",
+        "z": "aeb00f079c183644",
+        "name": "",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "Null",
+                "vt": "str"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 750,
+        "y": 520,
+        "wires": [
+            [
+                "225d5d7780186cb9"
+            ],
+            [
+                "1c757647144811ad"
+            ]
+        ]
+    },
+    {
+        "id": "1c757647144811ad",
+        "type": "debug",
+        "z": "aeb00f079c183644",
+        "name": "tdecode",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 940,
+        "y": 560,
+        "wires": []
+    },
+    {
+        "id": "0edf5193f4db62d6",
+        "type": "influxdb out",
+        "z": "aeb00f079c183644",
+        "influxdb": "9526ff4d1e29a534",
+        "name": "Data Packets Hexdump Out",
+        "measurement": "msg.payload",
+        "precision": "",
+        "retentionPolicy": "",
+        "database": "database",
+        "precisionV18FluxV20": "ms",
+        "retentionPolicyV18Flux": "",
+        "org": "CquauDA Project",
+        "bucket": "ESP32_Data_Pkt_Hexdump",
+        "x": 1080,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "bcc18e67a9c4b9de",
+        "type": "influxdb out",
+        "z": "aeb00f079c183644",
+        "influxdb": "9526ff4d1e29a534",
+        "name": "Data Packets Out",
+        "measurement": "msg.payload",
+        "precision": "",
+        "retentionPolicy": "",
+        "database": "database",
+        "precisionV18FluxV20": "ms",
+        "retentionPolicyV18Flux": "",
+        "org": "CquauDA Project",
+        "bucket": "ESP32_Data_Packets",
+        "x": 970,
+        "y": 420,
         "wires": []
     },
     {
@@ -193,11 +451,11 @@
         "port": "8086",
         "protocol": "http",
         "database": "database",
-        "name": "InfluxDB Cloud",
+        "name": "InfluxDB Local",
         "usetls": false,
         "tls": "",
         "influxdbVersion": "2.0",
-        "url": "https://ap-southeast-2-1.aws.cloud2.influxdata.com",
+        "url": "http://localhost:8086",
         "rejectUnauthorized": true
     }
 ]
