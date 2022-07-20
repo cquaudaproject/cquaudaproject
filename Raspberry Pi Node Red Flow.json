@@ -49,7 +49,7 @@
         "y": 400,
         "wires": [
             [
-                "3a3db74fbdd79409"
+                "c83c6872cb2810d3"
             ]
         ]
     },
@@ -57,15 +57,14 @@
         "id": "3a3db74fbdd79409",
         "type": "python3-function",
         "z": "7983c95b891ec670",
+        "d": true,
         "name": "Decoding Packets",
-        "func": "import sys\nimport time\nimport serial\nimport scapy.all as scapy\nimport json\n\nmagic_number = 0xa1b2c3d4\nversion_major = 2\nversion_minor = 4\nthiszone = 0\nsigfigs = 0\nsnaplen = 65535\nnetwork = 105\n\nser = serial.Serial('/dev/ttyUSB0', 115200)\ncheck = 0\nwhile check < 3                :\n    line = ser.readline()\n    if b\"<<START>>\" in line:\n        msg1 = {'payload':\"sniffer startted\"}\n        node.send(msg1)\n       \n        check += 1\n    if b\"CONNECTED\" in line:\n        check += 1\n        msg2 = {'payload':\"WiFi Conncted\"}\n        node.send(msg2)\n    if b\"IP ASSIGNED\" in line:\n        check += 1\n        msg3 = {'payload':\"IP Assigned to Esp32\"}\n        node.send(msg3)\n\na = 1\nwhile True:\n    f = open(\"/home/pi/pkt.pcap\", \"wb\")\n    if a > 1:\n        f.write(magic_number.to_bytes(4, byteorder='big'))\n        f.flush()\n        f.write(version_major.to_bytes(2, byteorder='big'))\n        f.flush()\n        f.write(version_minor.to_bytes(2, byteorder='big'))\n        f.flush()\n        f.write(thiszone.to_bytes(4, byteorder='big'))\n        f.flush()\n        f.write(sigfigs.to_bytes(4, byteorder='big'))\n        f.flush()\n        f.write(snaplen.to_bytes(4, byteorder='big'))\n        f.flush()\n        f.write(network.to_bytes(4, byteorder='big'))\n        f.flush()\n    start_t = time.time()\n    while (time.time() - start_t) < 15.0:\n        ch = ser.read()\n        f.write(ch)\n        f.flush()\n    f.close()\n    a = a+1\n    try:    \n        #new_pkt = scapy.rdpcap(\"pkt.cap\")\n        #print(line)\n        #raw_pkt = scapy.raw(pkt)\n        #print(new_pkt.nsummary())\n        #print(assembled_pkt)\n        #scapy.hexdump(pkt)\n        for packet in scapy.PcapReader(\"/home/pi/pkt.pcap\"):\n            try:\n                if packet.haslayer(scapy.Dot11WEP):\n                    packet[scapy.Dot11WEP].decrypt(key=None)\n                    \n                msg4 = {'payload':scapy.hexdump(packet, dump=True)}\n                node.send(msg4)\n                time.sleep(0.5)\n            except Exception as error:\n                msg8 = {'payload':\"Error-2: {}\".format(error)}\n                node.send(msg8)\n    except Exception as e:\n            \n        msg5 = {'payload':\"Error-1: {}\".format(e)}\n        node.send(msg5)\n    time.sleep(1)   \n\nf.close()\nser.close()\nmsg7 = {'payload':\"[+] Done.\"}\nnode.send(msg7)\nreturn\n",
+        "func": "import sys\nimport os\nimport time\nimport serial\nimport scapy.all as scapy\nimport json\nfrom subprocess import Popen, PIPE\n\n# Enable libpcap in scapy\nscapy.conf.use_pcap = True\n\nmagic_number = 0xa1b2c3d4\nversion_major = 2\nversion_minor = 4\nthiszone = 0\nsigfigs = 0\nsnaplen = 2500\nnetwork = 105\n\nser = serial.Serial('/dev/ttyUSB0', 921600)\ncheck = 0\nwhile check < 3                :\n    line = ser.readline()\n    if b\"<<START>>\" in line:\n        msg1 = {'payload':\"sniffer startted\"}\n        node.send(msg1)\n       \n        check += 1\n    if b\"CONNECTED\" in line:\n        check += 1\n        msg2 = {'payload':\"WiFi Conncted\"}\n        node.send(msg2)\n    if b\"IP ASSIGNED\" in line:\n        check += 1\n        msg3 = {'payload':\"IP Assigned to Esp32\"}\n        node.send(msg3)\n\na = 1\nwhile True:\n    f = open(\"/home/pi/pkt.pcap\", \"wb\")\n    if a > 1:\n        \n        f.write(magic_number.to_bytes(4, byteorder='little'))\n        f.flush()\n        f.write(version_major.to_bytes(2, byteorder='little'))\n        f.flush()\n        f.write(version_minor.to_bytes(2, byteorder='little'))\n        f.flush()\n        f.write(thiszone.to_bytes(4, byteorder='little'))\n        f.flush()\n        f.write(sigfigs.to_bytes(4, byteorder='little'))\n        f.flush()\n        f.write(snaplen.to_bytes(4, byteorder='little'))\n        f.flush()\n        f.write(network.to_bytes(4, byteorder='little'))\n        f.flush()\n\n    start_t = time.time()\n    \n    while (time.time() - start_t) < 15.0:\n        ch = ser.read()\n        f.write(ch)\n        #f.flush()\n    f.close()\n    a = a+1\n    \n    # Running tshark use WAP decryption on collected pcap file\n    infile=\"/home/pi/pkt.pcap\"\n    outfile=\"/home/pi/decrypted.pcap\"\n    ssid=\"WiFi-B2B7\"\n    psk=\"44635237\"\n    '''try:\n        msg9 = {'payload':\"\"}\n        process0=Popen('tshark -r {} -w {} -o wlan.enable_decryption:TRUE -o \"uat:80211_keys:\\\\\"wpa-pwd\\\\\",\\\\\"{}:{}\\\\\"\"'.format(infile,outfile,psk,ssid), shell=True, stdout=PIPE, text=True)\n        msg['payload']=process0.stdout.read()\n        #msg9['payload']=str(scapy.tcpdump(None, dump=True,prog='tshark',args=[\"-r\", \"$infile\", \"-w\", \"$outfile\",\"-o\", \"wlan.enable_decryption:TRUE\",\"-o\",'\"uat:80211_keys:\\\\\"wpa-pwd\\\\\",\\\\\"{}:{}\\\\\"\"'.format(psk,ssid)],wait=True))\n        node.send(msg9)\n    except Exception as err:\n        msg10 = {'payload':\"Error-3: {}\".format(err)}\n        node.send(msg10)'''\n    \n    try:    \n        #new_pkt = scapy.rdpcap(\"pkt.cap\")\n        #print(line)\n        #raw_pkt = scapy.raw(pkt)\n        #print(new_pkt.nsummary())\n        #print(assembled_pkt)\n        #scapy.hexdump(pkt)\n        for packet in scapy.PcapReader(\"/home/pi/pkt.pcap\"):\n            try:\n                if packet.haslayer(scapy.Dot11WEP):\n                    packet[scapy.Dot11WEP].decrypt(key=None)\n                    \n                msg4 = {'payload':scapy.hexdump(packet,dump=True)}\n                node.send(msg4)\n                time.sleep(0.5)\n            except Exception as error:\n                msg8 = {'payload':\"Error-2: {}\".format(error)}\n                node.send(msg8)\n    except Exception as e:\n            \n        msg5 = {'payload':\"Error-1: {}\".format(e)}\n        node.send(msg5)\n    time.sleep(1)   \n\nf.close()\nser.close()\nmsg7 = {'payload':\"[+] Done.\"}\nnode.send(msg7)\n\n",
         "outputs": 1,
-        "x": 410,
-        "y": 400,
+        "x": 730,
+        "y": 640,
         "wires": [
-            [
-                "e1ea82cbca360f9d"
-            ]
+            []
         ]
     },
     {
@@ -149,17 +148,25 @@
                 "vt": "str"
             },
             {
+                "t": "eq",
+                "v": "Processing started",
+                "vt": "str"
+            },
+            {
                 "t": "else"
             }
         ],
         "checkall": "true",
         "repair": false,
-        "outputs": 5,
+        "outputs": 6,
         "x": 650,
         "y": 400,
         "wires": [
             [
                 "085aae0d6a373cc7"
+            ],
+            [
+                "91f60686884fe257"
             ],
             [
                 "91f60686884fe257"
@@ -180,7 +187,7 @@
         "id": "91f60686884fe257",
         "type": "debug",
         "z": "7983c95b891ec670",
-        "name": "WiFi Status",
+        "name": "Process Status",
         "active": true,
         "tosidebar": true,
         "console": false,
@@ -189,7 +196,7 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 890,
+        "x": 900,
         "y": 400,
         "wires": []
     },
@@ -232,6 +239,21 @@
         "wires": [
             [
                 "7216e2bd3e65cb0d"
+            ]
+        ]
+    },
+    {
+        "id": "c83c6872cb2810d3",
+        "type": "python3-function",
+        "z": "7983c95b891ec670",
+        "name": "Decoding Packets_2",
+        "func": "import sys\nimport os\nimport time\nimport serial\nimport scapy.all as scapy\nimport json\nimport subprocess\nfrom multiprocessing import Process, Pool\n\n\n\n# Enable libpcap in scapy\nscapy.conf.use_pcap = True\n\n#Function to write Esp32 PCAP data to .pcap file in decryption\ndef writingPCAP(filename):\n    f = open(filename, \"wb\")\n    while True:\n        ch = ser.read()\n        f.write(ch)\n        #f.flush()\n        \nif __name__ == '__main__':\n    ser = serial.Serial('/dev/ttyUSB0', 115200)\n    check = 0\n    while check < 3:\n        line = ser.readline()\n        if b\"<<START>>\" in line:\n            msg1 = {'payload':\"sniffer startted\"}\n            node.send(msg1)\n            check += 1\n        if b\"CONNECTED\" in line:\n            check += 1\n            msg2 = {'payload':\"WiFi Conncted\"}\n            node.send(msg2)\n        if b\"IP ASSIGNED\" in line:\n            check += 1\n            msg3 = {'payload':\"IP Assigned to Esp32\"}\n            node.send(msg3)\n            \n    # Getting Pcap data in to a tempory file        \n    pcapfile = \"/home/pi/pkt.pcap\"\n    ssid='WiFi-B2B7'\n    psk='44635237'\n    p = Process(target=writingPCAP, args=(pcapfile,))\n    p.start()\n    \n    msg4 = {'payload':\"Processing started\"}\n    node.send(msg4)\n    \n    \n    time.sleep(10)\n    \n    # Reading the bytes written in to pcapfile and return them to stdout as hexdump\n    with subprocess.Popen('tail -f -c +0 {}|tshark -i - -b packets:50 -w \"/home/pi/packets/file.pcap\" -o wlan.enable_decryption:TRUE -o \"uat:80211_keys:\\\\\"wpa-pwd\\\\\",\\\\\"{}:{}\\\\\"\"'.format(pcapfile,psk,ssid), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process0:\n            \n            plist = os.listdir(path='/home/pi/packets/')\n            index = 1\n            while len(plist) == 0:\n                plist = os.listdir(path='/home/pi/packets/')\n                time.sleep(10)\n            while len(plist) != 0:\n                #Get the packets files names list\n                plist = os.listdir(path='/home/pi/packets/')\n                pfile = \"file_00000\"\n                pfilename = \"\"\n                if index < 10:\n                    pfile = \"file_0000{}\".format(index)\n                elif index < 100:\n                    pfile = \"file_000{}\".format(index)\n                elif index < 1000:\n                    pfile = \"file_00{}\".format(index)\n                elif index < 10000:\n                    pfile = \"file_0{}\".format(index)\n                elif index < 100000:\n                    pfile = \"file_{}\".format(index)\n                for fname in plist:\n                    #Get the file name\n                    if pfile in fname:\n                        pfilename = \"/home/pi/packets/{}\".format(fname)\n                try:\n                    \n                    for packet in scapy.PcapReader(pfilename):\n                        try:\n                            if packet.haslayer(scapy.Dot11WEP):\n                                    packet[scapy.Dot11WEP].decrypt(key=None)\n                                    \n                            msg7 = {'payload':scapy.hexdump(packet,dump=True)}\n                            node.send(msg7)\n                            time.sleep(0.2)\n                        except Exception as error:\n                            msg8 = {'payload':\"Error-2: {}\".format(error)}\n                            node.send(msg8)\n                except Exception as err:\n                    msg9 = {'payload':\"Error-1: {}\".format(err)}\n                    node.send(msg9)\n                os.remove(pfilename)\n                index = index + 1\n                time.sleep(20)\n            msg5 = {'payload':process0.stdout.read()}\n            node.send(msg5)\n            msg6 = {'payload':process0.stderr.read()}\n            node.send(msg6)    \n                \n         \n        \n\n\n\n\n\n\n",
+        "outputs": 1,
+        "x": 400,
+        "y": 400,
+        "wires": [
+            [
+                "e1ea82cbca360f9d"
             ]
         ]
     },
