@@ -23,7 +23,7 @@ def writingPCAP(filename):
 if __name__ == '__main__':
     ser = serial.Serial('/dev/ttyUSB0', 115200)
     check = 0
-    while check < 2:
+    while check < 3:
         line = ser.readline()
         if b"<<START>>" in line:
             msg1 = {'payload':"sniffer startted"}
