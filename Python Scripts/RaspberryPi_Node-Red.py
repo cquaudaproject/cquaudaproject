@@ -84,7 +84,7 @@ if __name__ == '__main__':
         time.sleep(10)
         
         # Reading the bytes written in to pcapfile and return them to stdout as hexdump
-        with subprocess.Popen('tail -f -c +0 {}|tshark -i - -b packets:50 -w "/home/pi/packets/file.pcap" -o wlan.enable_decryption:TRUE -o "uat:80211_keys:\\"wpa-pwd\\",\\"{}:{}\\""'.format(pcapfile,psk,ssid), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process0:
+        with subprocess.Popen('tail -f -c +0 {}|tshark -i - -b packets:50 -w "/home/pi/packets/file.pcap"'.format(pcapfile,psk,ssid), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process0:
                 
                 plist = os.listdir(path='/home/pi/packets/')
                 index = 1
@@ -122,12 +122,12 @@ if __name__ == '__main__':
                         
                         for packet in scapy.PcapReader(pfilename):
                             try:
-                                if packet.haslayer(scapy.Dot11WEP):
-                                        packet[scapy.Dot11WEP].decrypt(key=None)
-                                        
                                 msg7 = {'payload':scapy.hexdump(packet,dump=True)}
                                 node.send(msg7)
-                                time.sleep(0.23)
+                                #if "32:f7:49:76:28:08" in packet.sprintf("%Dot11.addr2%"):
+                                    #msg10 = {'payload':packet.sprintf(" Packet Type = %Dot11.type%\n Packet Subtype = %Dot11.subtype%\n Protocol Version = %Dot11.proto%\n cfe = %Dot11.cfe%\n FCField = %Dot11.FCfield%\n ID = %Dot11.ID%\n addr1 = %Dot11.addr1%\n addr2 = %Dot11.addr2%\n addr3 = %Dot11.addr3%\n SC = %Dot11.SC%\n addr4 = %Dot11.addr4%")+"\nLen = {}".format(packet.wirelen)}
+                                    #node.send(msg10)
+                                time.sleep(0.20)
                             except Exception as error:
                                 msg8 = {'payload':"Error-2: {}".format(error)}
                                 node.send(msg8)
